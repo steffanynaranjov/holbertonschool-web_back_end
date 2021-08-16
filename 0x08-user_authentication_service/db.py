@@ -1,59 +1,59 @@
 #!/usr/bin/env python3
-"""
-database file
+""" Database module
 """
 
-from user import Base, User
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
-from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm import sessionmaker
+from typing import TypeVar
+
+from user import Base
+from user import User
 
 
 class DB:
-    """ Database class"""
+    """ Database class
+        Creates engine, session, adds user object to DB
+        Methods:
+            add_user - save the user object to the database
+            find_user_by - returns the first row found in the users table
+    """
     def __init__(self):
-        """ method constructor that create a connection"""
-        self._engine = create_engine("sqlite:///a.db", echo=False)
+        """ constructor"""
+        self._engine = create_engine("sqlite:///a.db")
         Base.metadata.drop_all(self._engine)
         Base.metadata.create_all(self._engine)
         self.__session = None
 
     @property
     def _session(self):
-        """ method that create a session"""
+        """create session """
         if self.__session is None:
             DBSession = sessionmaker(bind=self._engine)
             self.__session = DBSession()
         return self.__session
 
-    def add_user(self, email: str, hashed_password: str) -> User:
-        """methood that create new user """
-        new_user = User(email=email, hashed_password=hashed_password)
-        self._session.add(new_user)
+    def add_user(self, email: str, hashed_password: str) -> TypeVar('User'):
+        """ Add a user instance to the session DB """
+        user = User(email=email, hashed_password=hashed_password)
+        self._session.add(user)
         self._session.commit()
-        return new_user
+        return user
 
-    def find_user_by(self, **kwargs) -> User:
-        """ Returns first User in DB matching kwargs """
-        if not kwargs:
-            raise InvalidRequestError
-        if not all(key in User.__table__.columns for key in kwargs):
-            raise InvalidRequestError
-        row = self._session.query(User).filter_by(**kwargs).one()
-        if not row:
-            raise NoResultFound
-        return row
+    def find_user_by(self, **kwargs: dict) -> object:
+        """ returns the first row found in the users table
+            as filtered by the method’s input arguments
+        """
+        return self._session.query(User).filter_by(**kwargs).first()
 
-    def update_user(self, user_id: int, **kwargs) -> None:
-        """ Method that update an user in the database """
-        user = self.find_user_by(id=user_id)
-
-        columns = user.__table__.columns.keys()
-        for key, value in kwargs.items():
-            if key not in columns:
+    def update_user(self, user_id: int, **kwargs: dict) -> None:
+        """ update the user’s attributes as passed in the method’s arguments
+            then commit changes to the database
+        """
+        u = self.find_user_by(id=user_id)
+        for key, val in kwargs.items():
+            if not hasattr(u, key):
                 raise ValueError
-            setattr(user, key, value)
+            setattr(u, key, val)
         self._session.commit()
-        return None
